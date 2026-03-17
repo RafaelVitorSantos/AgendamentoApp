@@ -1,0 +1,6 @@
+RewriteEngine On
+RewriteBase /AgendamentoApp/
+
+# Redireciona todas as requisições para a pasta public/
+RewriteCond %{REQUEST_URI} !^/AgendamentoApp/public/
+RewriteRule ^(.*)$ public/$1 [L]
