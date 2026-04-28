@@ -155,8 +155,18 @@ $chartLabels  = array_map(fn($m) => date('M/y', strtotime($m . '-01')), $chartMo
                                 <td class="px-4 py-3 text-right text-sm font-semibold whitespace-nowrap <?= $t['type'] === 'income' ? 'text-green-700' : 'text-red-700' ?>">
                                     <?= $t['type'] === 'income' ? '+' : '-' ?><?= format_money((float) $t['amount']) ?>
                                 </td>
-                                <td class="px-4 py-3 text-right">
-                                    <?php if ($t['status'] !== 'cancelled'): ?>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    <?php if ($t['status'] === 'pending'): ?>
+                                        <button type="button"
+                                                onclick="openConfirmModal(<?= $t['id'] ?>)"
+                                                class="text-xs font-semibold text-green-600 hover:text-green-500 mr-3">
+                                            ✓ Receber
+                                        </button>
+                                        <form method="post" action="<?= url('financial/' . $t['id'] . '/delete') ?>" class="inline" onsubmit="return confirm('Cancelar este lançamento?');">
+                                            <?= csrf_field() ?>
+                                            <button type="submit" class="text-xs text-red-600 hover:text-red-500">Cancelar</button>
+                                        </form>
+                                    <?php elseif ($t['status'] === 'paid'): ?>
                                         <form method="post" action="<?= url('financial/' . $t['id'] . '/delete') ?>" class="inline" onsubmit="return confirm('Cancelar este lançamento?');">
                                             <?= csrf_field() ?>
                                             <button type="submit" class="text-xs text-red-600 hover:text-red-500">Cancelar</button>
@@ -195,6 +205,45 @@ $chartLabels  = array_map(fn($m) => date('M/y', strtotime($m . '-01')), $chartMo
     </div>
 </div>
 
+<!-- Modal: Confirmar Recebimento -->
+<div id="confirmModal" class="fixed inset-0 z-50 hidden" x-data>
+    <div class="fixed inset-0 bg-black/40" onclick="closeConfirmModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm relative">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Confirmar Recebimento</h2>
+
+            <form id="confirmForm" method="POST" action="">
+                <?= csrf_field() ?>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Forma de Pagamento</label>
+                        <select name="payment_method"
+                                class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:ring-brand-500">
+                            <option value="cash">Dinheiro</option>
+                            <option value="pix">PIX</option>
+                            <option value="credit_card">Cartão de Crédito</option>
+                            <option value="debit_card">Cartão de Débito</option>
+                            <option value="transfer">Transferência</option>
+                            <option value="other">Outro</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex gap-3">
+                    <button type="button" onclick="closeConfirmModal()"
+                            class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                            class="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-500">
+                        Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?php if (!empty($chartData)): ?>
 <?php $footerScripts = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>
 const ctx = document.getElementById("finChart");
@@ -217,3 +266,14 @@ new Chart(ctx, {
 });
 </script>'; ?>
 <?php endif; ?>
+
+<script>
+function openConfirmModal(id) {
+    const base = <?= json_encode(rtrim(url('financial'), '/')) ?>;
+    document.getElementById('confirmForm').action = base + '/' + id + '/confirm';
+    document.getElementById('confirmModal').classList.remove('hidden');
+}
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+}
+</script>

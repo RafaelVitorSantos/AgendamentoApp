@@ -19,10 +19,24 @@ use App\Controllers\SettingsController;
 use App\Controllers\PlaceholderController;
 use App\Controllers\QueueController;
 use App\Controllers\ScheduleBlockController;
+use App\Controllers\HealthController;
+use App\Controllers\LgpdController;
 use App\Controllers\PublicBookingController;
+use App\Controllers\Public\TokenActionController;
+use App\Controllers\CalendarController;
+use App\Controllers\CalendarWebhookController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\CsrfMiddleware;
+
+// Health check (sem autenticação — usado por load balancers e monitoramento)
+$router->get('/health', [HealthController::class, 'check']);
+
+// Feed iCal público (autenticado por token na URL, sem sessão)
+$router->get('/calendar/{token}.ics', [CalendarController::class, 'feed']);
+
+// Webhook do Google Calendar (sem sessão — autenticado pelo channelId interno)
+$router->post('/webhook/google', [CalendarWebhookController::class, 'google']);
 
 // -----------------------------------------------
 // Rotas públicas (sem autenticação)
@@ -34,6 +48,12 @@ $router->post('/book/{slug}', [PublicBookingController::class, 'store']);
 $router->get('/book/{slug}/api/professionals', [PublicBookingController::class, 'apiProfessionals']);
 $router->get('/book/{slug}/api/slots', [PublicBookingController::class, 'apiSlots']);
 $router->get('/book/{slug}/confirm/{id}', [PublicBookingController::class, 'confirm']);
+
+// Cancelamento e remarcação via link (sem login) — S3-06/07
+$router->get('/booking/cancel/{token}',        [TokenActionController::class, 'showCancel']);
+$router->post('/booking/cancel/{token}',       [TokenActionController::class, 'processCancel'], [CsrfMiddleware::class]);
+$router->get('/booking/reschedule/{token}',    [TokenActionController::class, 'showReschedule']);
+$router->post('/booking/reschedule/{token}',   [TokenActionController::class, 'processReschedule'], [CsrfMiddleware::class]);
 
 $router->get('/', [LoginController::class, 'showLogin']);
 $router->get('/login', [LoginController::class, 'showLogin']);
@@ -105,7 +125,8 @@ $router->group(['middleware' => [AuthMiddleware::class, TenantMiddleware::class,
     $router->get('/financial', [FinancialController::class, 'index']);
     $router->get('/financial/create', [FinancialController::class, 'create']);
     $router->post('/financial', [FinancialController::class, 'store']);
-    $router->post('/financial/{id}/delete', [FinancialController::class, 'destroy']);
+    $router->post('/financial/{id}/confirm', [FinancialController::class, 'confirm']);
+    $router->post('/financial/{id}/delete',  [FinancialController::class, 'destroy']);
 
     // Relatórios
     $router->get('/reports', [ReportController::class, 'index']);
@@ -128,4 +149,21 @@ $router->group(['middleware' => [AuthMiddleware::class, TenantMiddleware::class,
     $router->post('/settings/company', [SettingsController::class, 'updateCompany']);
     $router->post('/settings/password', [SettingsController::class, 'updatePassword']);
     $router->post('/settings/profile', [SettingsController::class, 'updateProfile']);
+
+    // LGPD — portabilidade e direito ao esquecimento
+    $router->get('/clients/{id}/export', [LgpdController::class, 'exportClient']);
+    $router->post('/clients/{id}/anonymize', [LgpdController::class, 'anonymizeClient']);
+
+    // Calendário — configurações e OAuth
+    $router->get('/settings/calendar',                              [CalendarController::class, 'settings']);
+    $router->post('/settings/calendar/token/generate',              [CalendarController::class, 'generateToken']);
+    $router->post('/settings/calendar/token/revoke',                [CalendarController::class, 'revokeToken']);
+    $router->get('/settings/calendar/google/select',                [CalendarController::class, 'googleSelectCalendar']);
+    $router->post('/settings/calendar/google/select',               [CalendarController::class, 'googleSaveCalendar']);
+    $router->post('/settings/calendar/integrations/{id}/toggle',    [CalendarController::class, 'toggleIntegration']);
+    $router->post('/settings/calendar/integrations/{id}/delete',    [CalendarController::class, 'deleteIntegration']);
+
+    // OAuth do Google (redireciona para Google e recebe callback)
+    $router->get('/oauth/google',          [CalendarController::class, 'googleOAuth']);
+    $router->get('/oauth/google/callback', [CalendarController::class, 'googleCallback']);
 });

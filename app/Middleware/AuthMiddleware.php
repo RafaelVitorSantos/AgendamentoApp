@@ -20,6 +20,15 @@ class AuthMiddleware
             redirect(url('login'));
         }
 
+        // Valida fingerprint para detectar sequestro de sessão
+        if (isset($_SESSION['_fingerprint'])) {
+            $currentFingerprint = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+            if (!hash_equals($_SESSION['_fingerprint'], $currentFingerprint)) {
+                session_destroy();
+                redirect(url('login?expired=1'));
+            }
+        }
+
         // Verifica timeout de inatividade (30 minutos)
         $maxInactivity = 30 * 60;
         if (isset($_SESSION['_last_activity'])) {

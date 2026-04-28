@@ -5,6 +5,10 @@ namespace App\Services;
 use App\Core\Database;
 use App\Core\TenantContext;
 use App\Models\Appointment;
+use App\Services\JobService;
+use App\Jobs\SendConfirmationEmailJob;
+use App\Jobs\SendWhatsAppNotificationJob;
+use App\Jobs\SyncAppointmentToCalendarJob;
 
 /**
  * Lógica de negócio de agendamentos.
@@ -14,11 +18,13 @@ class AppointmentService
 {
     private Appointment $model;
     private PlanLimiter $limiter;
+    private JobService  $jobSvc;
 
     public function __construct()
     {
-        $this->model = new Appointment();
+        $this->model  = new Appointment();
         $this->limiter = new PlanLimiter();
+        $this->jobSvc = new JobService();
     }
 
     /**
@@ -82,6 +88,16 @@ class AppointmentService
 
         $id = $this->model->create($appointmentData);
 
+        // Dispara e-mail, WhatsApp e sync de calendário de forma assíncrona
+        try {
+            $tenantId = TenantContext::require();
+            $this->jobSvc->dispatch(new SendConfirmationEmailJob($id, $tenantId));
+            $this->jobSvc->dispatch(new SendWhatsAppNotificationJob($id, $tenantId, 'confirmation'));
+            $this->jobSvc->dispatch(new SyncAppointmentToCalendarJob($id, $tenantId, 'create'));
+        } catch (\Throwable) {
+            // Falha ao enfileirar não deve impedir o agendamento
+        }
+
         return ['success' => true, 'id' => $id];
     }
 
@@ -95,11 +111,20 @@ class AppointmentService
 
         $status = $cancelledBy === 'client' ? 'cancelled_by_client' : 'cancelled_by_business';
 
-        return $this->model->update($id, [
+        $updated = $this->model->update($id, [
             'status'        => $status,
             'cancelled_at'  => now(),
             'cancel_reason' => $reason,
         ]);
+
+        if ($updated) {
+            try {
+                $tenantId = $appointment['tenant_id'] ?? TenantContext::require();
+                $this->jobSvc->dispatch(new SyncAppointmentToCalendarJob($id, $tenantId, 'delete'));
+            } catch (\Throwable) {}
+        }
+
+        return $updated;
     }
 
     /**
@@ -179,7 +204,105 @@ class AppointmentService
                 break;
         }
 
-        return $this->model->update($id, $updateData);
+        $updated = $this->model->update($id, $updateData);
+
+        if ($updated) {
+            if ($status === 'completed') {
+                $this->createCompletionTransaction($appointment);
+            }
+            try {
+                $tenantId = $appointment['tenant_id'] ?? TenantContext::require();
+                $action   = in_array($status, ['cancelled_by_client', 'cancelled_by_business', 'no_show'], true)
+                    ? 'delete'
+                    : 'update';
+                $this->jobSvc->dispatch(new SyncAppointmentToCalendarJob($id, $tenantId, $action));
+            } catch (\Throwable) {}
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Cria lançamento de recebimento ao concluir um atendimento.
+     * Idempotente: não cria duplicata se já existir lançamento para o agendamento.
+     */
+    private function createCompletionTransaction(array $appointment): void
+    {
+        if (empty($appointment['price']) || (float) $appointment['price'] <= 0) {
+            return;
+        }
+
+        $db = Database::getInstance();
+
+        // Idempotência: verifica se já existe lançamento vinculado
+        $exists = $db->prepare(
+            "SELECT COUNT(*) FROM financial_transactions WHERE appointment_id = ? AND tenant_id = ?"
+        );
+        $exists->execute([$appointment['id'], $appointment['tenant_id']]);
+        if ((int) $exists->fetchColumn() > 0) {
+            return;
+        }
+
+        // Busca detalhes do agendamento para a descrição
+        $stmt = $db->prepare(
+            "SELECT s.name AS service_name, c.name AS client_name
+             FROM appointments a
+             LEFT JOIN services s ON s.id = a.service_id
+             LEFT JOIN clients  c ON c.id = a.client_id
+             WHERE a.id = ?"
+        );
+        $stmt->execute([$appointment['id']]);
+        $details = $stmt->fetch();
+
+        $serviceName = $details['service_name'] ?? 'Serviço';
+        $clientName  = $details['client_name']  ?? null;
+        $description = $clientName
+            ? "Atendimento: {$serviceName} — {$clientName}"
+            : "Atendimento: {$serviceName}";
+
+        // Busca ou cria categoria padrão de serviços para o tenant
+        $categoryId = $this->getOrCreateServiceCategory($db, (int) $appointment['tenant_id']);
+
+        $db->prepare(
+            "INSERT INTO financial_transactions
+                (tenant_id, unit_id, category_id, appointment_id, type, description,
+                 amount, status, reference_date, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'income', ?, ?, 'pending', ?, ?, NOW(), NOW())"
+        )->execute([
+            $appointment['tenant_id'],
+            $appointment['unit_id'] ?? null,
+            $categoryId,
+            $appointment['id'],
+            $description,
+            $appointment['price'],
+            $appointment['date'],
+            $_SESSION['user_id'] ?? null,
+        ]);
+    }
+
+    /**
+     * Retorna o id da categoria "Serviços" do tenant, criando-a se não existir.
+     */
+    private function getOrCreateServiceCategory(\PDO $db, int $tenantId): int
+    {
+        $stmt = $db->prepare(
+            "SELECT id FROM financial_categories
+             WHERE tenant_id = ? AND type = 'income' AND is_system = 1
+             ORDER BY id ASC LIMIT 1"
+        );
+        $stmt->execute([$tenantId]);
+        $row = $stmt->fetch();
+        if ($row) {
+            return (int) $row['id'];
+        }
+
+        // Cria categoria padrão caso o tenant não tenha nenhuma
+        $db->prepare(
+            "INSERT INTO financial_categories (tenant_id, name, type, color, is_system, created_at)
+             VALUES (?, 'Serviços', 'income', '#10B981', 1, NOW())"
+        )->execute([$tenantId]);
+
+        return (int) $db->lastInsertId();
     }
 
     /**
@@ -209,7 +332,7 @@ class AppointmentService
         }
         $workingHours = $stmt->fetchAll();
 
-        // Se não tiver para esta unidade, tenta sem filtro de unidade
+        // Se não achou para esta unidade, tenta sem filtro de unidade (mesmo dia)
         if (empty($workingHours) && $unitId > 0) {
             $stmt = $db->prepare(
                 "SELECT start_time, end_time FROM professional_working_hours
@@ -219,8 +342,20 @@ class AppointmentService
             $workingHours = $stmt->fetchAll();
         }
 
-        // Se não houver horários configurados para nenhuma unidade, usa padrão 08h-18h
         if (empty($workingHours)) {
+            // Verifica se o profissional tem horários para qualquer outro dia
+            $anyStmt = $db->prepare(
+                "SELECT COUNT(*) FROM professional_working_hours
+                 WHERE tenant_id = ? AND professional_id = ? AND is_active = 1"
+            );
+            $anyStmt->execute([$tenantId, $professionalId]);
+
+            if ((int) $anyStmt->fetchColumn() > 0) {
+                // Tem horários configurados, mas não para este dia → dia fechado
+                return [];
+            }
+
+            // Nenhum horário configurado → modo permissivo (padrão comercial 08h-18h)
             $workingHours = [['start_time' => '08:00:00', 'end_time' => '18:00:00']];
         }
 
@@ -277,10 +412,19 @@ class AppointmentService
                 }
 
                 if ($isAvailable) {
-                    // Se a data é hoje, não mostra horários já passados (slot início estritamente antes de agora)
-                    if ($date === date('Y-m-d') && $slotStart < date('H:i:s')) {
-                        $current += $interval * 60;
-                        continue;
+                    // Se a data é hoje, não mostra horários já passados.
+                    // Usa o timezone do tenant para determinar "agora".
+                    if ($date === date('Y-m-d')) {
+                        try {
+                            $tz      = TenantContext::getData()['timezone'] ?? 'America/Sao_Paulo';
+                            $nowTime = (new \DateTimeImmutable('now', new \DateTimeZone($tz)))->format('H:i:s');
+                        } catch (\Throwable) {
+                            $nowTime = date('H:i:s');
+                        }
+                        if ($slotStart < $nowTime) {
+                            $current += $interval * 60;
+                            continue;
+                        }
                     }
 
                     $slots[] = [

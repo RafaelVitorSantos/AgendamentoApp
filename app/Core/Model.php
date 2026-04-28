@@ -80,7 +80,9 @@ abstract class Model
         $sql .= " ORDER BY {$orderBy}";
 
         if ($limit !== null) {
-            $sql .= " LIMIT {$limit} OFFSET {$offset}";
+            $sql .= " LIMIT ? OFFSET ?";
+            $params[] = (int) $limit;
+            $params[] = (int) $offset;
         }
 
         $stmt = $this->db->prepare($sql);

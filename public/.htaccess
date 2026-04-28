@@ -1,5 +1,9 @@
 RewriteEngine On
 
+# Força HTTPS em produção
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 # Redireciona tudo para public/index.php exceto arquivos estáticos
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

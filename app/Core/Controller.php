@@ -10,10 +10,13 @@ abstract class Controller
 {
     /**
      * Renderiza uma view com dados.
+     * $viewData fica disponível na view como referência segura além das variáveis extraídas.
      */
     protected function view(string $view, array $data = []): void
     {
-        extract($data);
+        $viewData = $data;
+        // EXTR_SKIP impede sobrescrita de variáveis já definidas no escopo (ex.: $viewData, $view)
+        extract($data, EXTR_SKIP);
 
         $viewPath = BASE_PATH . '/resources/views/' . str_replace('.', '/', $view) . '.php';
 
@@ -30,10 +33,13 @@ abstract class Controller
 
     /**
      * Renderiza view dentro de um layout.
+     * $viewData fica disponível na view como referência segura além das variáveis extraídas.
      */
     protected function render(string $view, array $data = [], string $layout = 'layouts.app'): void
     {
-        extract($data);
+        $viewData = $data;
+        // EXTR_SKIP impede sobrescrita de variáveis já definidas no escopo (ex.: $viewData, $view)
+        extract($data, EXTR_SKIP);
 
         $viewPath = BASE_PATH . '/resources/views/' . str_replace('.', '/', $view) . '.php';
 

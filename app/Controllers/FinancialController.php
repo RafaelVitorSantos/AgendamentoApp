@@ -91,6 +91,45 @@ class FinancialController extends Controller
         redirect(url('financial?month=' . date('Y-m', strtotime($this->input('reference_date')))));
     }
 
+    /**
+     * Confirma o recebimento de um lançamento pendente.
+     * POST /financial/{id}/confirm
+     */
+    public function confirm(string $id): void
+    {
+        $this->authorize('financial.create');
+
+        $tx = $this->model->find((int) $id);
+        if (!$tx || $tx['status'] !== 'pending') {
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Lançamento não encontrado ou já confirmado.'], 422);
+                return;
+            }
+            flash('error', 'Lançamento não encontrado ou já confirmado.');
+            redirect(url('financial'));
+            return;
+        }
+
+        $paymentMethod = $this->input('payment_method') ?: 'cash';
+
+        $this->model->update((int) $id, [
+            'status'         => 'paid',
+            'payment_method' => $paymentMethod,
+            'paid_at'        => now(),
+            'updated_at'     => now(),
+        ]);
+
+        AuditService::log('confirm_payment', 'financial_transactions', (int) $id, ['status' => 'pending'], ['status' => 'paid', 'payment_method' => $paymentMethod]);
+
+        if ($this->isAjax()) {
+            $this->json(['success' => true]);
+            return;
+        }
+
+        flash('success', 'Pagamento confirmado!');
+        back();
+    }
+
     public function destroy(string $id): void
     {
         $this->authorize('financial.create');
@@ -106,5 +145,11 @@ class FinancialController extends Controller
         AuditService::log('delete', 'financial_transactions', (int) $id);
         flash('success', 'Lançamento cancelado.');
         back();
+    }
+
+    private function isAjax(): bool
+    {
+        return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
+            || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
     }
 }

@@ -8,10 +8,16 @@ use App\Core\TenantContext;
 /**
  * Controla os limites de cada plano de assinatura.
  * Verifica se o tenant pode criar mais recursos.
+ *
+ * Cache de 5 minutos em arquivo por tenant para evitar N+1 queries
+ * em páginas que verificam múltiplos limites.
  */
 class PlanLimiter
 {
-    private ?array $planCache = null;
+    private const CACHE_TTL = 300; // 5 minutos
+
+    private ?array $planCache   = null;
+    private array  $countCache  = [];
 
     public function getPlan(): array
     {
@@ -19,9 +25,16 @@ class PlanLimiter
             return $this->planCache;
         }
 
-        $tenantId = TenantContext::require();
-        $db = Database::getInstance();
+        $tenantId  = TenantContext::require();
+        $cacheKey  = "plan_{$tenantId}";
+        $cached    = $this->readCache($cacheKey);
 
+        if ($cached !== null) {
+            $this->planCache = $cached;
+            return $this->planCache;
+        }
+
+        $db   = Database::getInstance();
         $stmt = $db->prepare(
             "SELECT p.* FROM plans p
              JOIN subscriptions s ON s.plan_id = p.id
@@ -31,12 +44,25 @@ class PlanLimiter
         $stmt->execute([$tenantId]);
         $this->planCache = $stmt->fetch() ?: $this->getFreePlan();
 
+        $this->writeCache($cacheKey, $this->planCache);
+
         return $this->planCache;
+    }
+
+    /**
+     * Invalida o cache do plano (chamar após upgrade/downgrade de plano).
+     */
+    public function invalidatePlanCache(): void
+    {
+        $tenantId = TenantContext::require();
+        $this->deleteCache("plan_{$tenantId}");
+        $this->planCache  = null;
+        $this->countCache = [];
     }
 
     private function getFreePlan(): array
     {
-        $db = Database::getInstance();
+        $db   = Database::getInstance();
         $stmt = $db->prepare("SELECT * FROM plans WHERE slug = 'free' LIMIT 1");
         $stmt->execute();
         return $stmt->fetch();
@@ -123,24 +149,50 @@ class PlanLimiter
 
     private function countResource(string $table): int
     {
-        $tenantId = TenantContext::require();
-        $db = Database::getInstance();
+        if (isset($this->countCache[$table])) {
+            return $this->countCache[$table];
+        }
 
+        $tenantId   = TenantContext::require();
+        $cacheKey   = "count_{$tenantId}_{$table}";
+        $cached     = $this->readCache($cacheKey);
+
+        if ($cached !== null) {
+            $this->countCache[$table] = (int) $cached;
+            return $this->countCache[$table];
+        }
+
+        $db         = Database::getInstance();
         $softDelete = in_array($table, ['professionals', 'clients', 'services', 'units', 'users']);
-        $extra = $softDelete ? " AND deleted_at IS NULL" : "";
-
+        $extra      = $softDelete ? " AND deleted_at IS NULL" : "";
         $activeCheck = in_array($table, ['professionals', 'units', 'services']) ? " AND is_active = 1" : "";
 
         $stmt = $db->prepare("SELECT COUNT(*) FROM {$table} WHERE tenant_id = ?{$extra}{$activeCheck}");
         $stmt->execute([$tenantId]);
-        return (int) $stmt->fetchColumn();
+        $count = (int) $stmt->fetchColumn();
+
+        $this->writeCache($cacheKey, $count);
+        $this->countCache[$table] = $count;
+
+        return $count;
     }
 
     private function countMonthlyAppointments(): int
     {
-        $tenantId = TenantContext::require();
-        $db = Database::getInstance();
+        if (isset($this->countCache['appointments_month'])) {
+            return $this->countCache['appointments_month'];
+        }
 
+        $tenantId = TenantContext::require();
+        $cacheKey = "count_{$tenantId}_appointments_month_" . date('Ym');
+        $cached   = $this->readCache($cacheKey);
+
+        if ($cached !== null) {
+            $this->countCache['appointments_month'] = (int) $cached;
+            return (int) $cached;
+        }
+
+        $db   = Database::getInstance();
         $stmt = $db->prepare(
             "SELECT COUNT(*) FROM appointments
              WHERE tenant_id = ?
@@ -149,6 +201,55 @@ class PlanLimiter
              AND status NOT IN ('cancelled_by_client', 'cancelled_by_business')"
         );
         $stmt->execute([$tenantId]);
-        return (int) $stmt->fetchColumn();
+        $count = (int) $stmt->fetchColumn();
+
+        $this->writeCache($cacheKey, $count);
+        $this->countCache['appointments_month'] = $count;
+
+        return $count;
+    }
+
+    // -------------------------------------------------------
+    // Cache helpers (arquivo; migrar para Redis em produção)
+    // -------------------------------------------------------
+
+    private function readCache(string $key): mixed
+    {
+        $file = $this->cachePath($key);
+        if (!file_exists($file)) {
+            return null;
+        }
+        $raw = json_decode(file_get_contents($file), true);
+        if (!$raw || (time() - ($raw['ts'] ?? 0)) > self::CACHE_TTL) {
+            @unlink($file);
+            return null;
+        }
+        return $raw['v'];
+    }
+
+    private function writeCache(string $key, mixed $value): void
+    {
+        $dir = base_path('storage/cache/plan_limits');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        file_put_contents(
+            $this->cachePath($key),
+            json_encode(['ts' => time(), 'v' => $value]),
+            LOCK_EX
+        );
+    }
+
+    private function deleteCache(string $key): void
+    {
+        $file = $this->cachePath($key);
+        if (file_exists($file)) {
+            unlink($file);
+        }
+    }
+
+    private function cachePath(string $key): string
+    {
+        return base_path('storage/cache/plan_limits/' . md5($key) . '.json');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Core\Database;
+use App\Core\TenantContext;
 use App\Services\AppointmentService;
 
 class PublicBookingController extends Controller
@@ -100,7 +101,7 @@ class PublicBookingController extends Controller
             return;
         }
 
-        $_SESSION['tenant_id'] = (int) $tenant['id'];
+        TenantContext::set((int) $tenant['id']);
         $svc   = new AppointmentService();
         $raw   = $svc->getAvailableSlots($professionalId, $unitId, $date, (int) $service['duration_minutes']);
 
@@ -167,7 +168,7 @@ class PublicBookingController extends Controller
             back();
         }
 
-        $_SESSION['tenant_id'] = $tenantId;
+        TenantContext::set($tenantId);
 
         $svc    = new AppointmentService();
         $result = $svc->create([
