@@ -303,6 +303,8 @@ model Service {
   appointments         Appointment[]
   serviceQueue         ServiceQueue[]
 
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, isActive, deletedAt])
   @@map("services")
 }
 
@@ -333,6 +335,8 @@ model Professional {
   calendarTokens       CalendarToken[]
   calendarIntegrations CalendarIntegration[]
 
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, isActive, deletedAt])
   @@map("professionals")
 }
 
@@ -344,6 +348,7 @@ model ProfessionalUnit {
   unit         Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@id([professionalId, unitId])
+  @@index([unitId])
   @@map("professional_units")
 }
 
@@ -359,6 +364,7 @@ model ProfessionalService {
   service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@id([professionalId, serviceId])
+  @@index([serviceId])
   @@map("professional_services")
 }
 
@@ -425,6 +431,8 @@ model Client {
   waitlist              Waitlist[]
   serviceQueue          ServiceQueue[]
 
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, createdAt])
   @@map("clients")
 }
 
@@ -502,6 +510,7 @@ model ServiceQueue {
   professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   service      Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, status])
   @@map("service_queue")
 }
 
@@ -580,6 +589,8 @@ model FinancialTransaction {
   appointment Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   client      Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, type, status, createdAt])
+  @@index([tenantId, createdAt])
   @@map("financial_transactions")
 }
 

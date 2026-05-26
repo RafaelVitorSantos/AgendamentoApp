@@ -234,7 +234,11 @@ function ServiceFormFields({ form, onChange, categories, showIsActive = false, d
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Categoria</Label>
-          <Select value={form.categoryId} onValueChange={(v) => onChange("categoryId", v)} disabled={disabled}>
+          <Select
+            value={form.categoryId}
+            onValueChange={(v) => onChange("categoryId", v ?? "")}
+            disabled={disabled}
+            items={{ none: "Sem categoria", ...Object.fromEntries(categories.map((c) => [String(c.id), c.name])) }}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Sem categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Sem categoria</SelectItem>
@@ -248,7 +252,11 @@ function ServiceFormFields({ form, onChange, categories, showIsActive = false, d
         </div>
         <div className="space-y-1.5">
           <Label>Duração</Label>
-          <Select value={form.duration} onValueChange={(v) => onChange("duration", v)} disabled={disabled}>
+          <Select
+            value={form.duration}
+            onValueChange={(v) => onChange("duration", v ?? "")}
+            disabled={disabled}
+            items={Object.fromEntries(DURATION_OPTIONS.map((d) => [d.value, d.label]))}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {DURATION_OPTIONS.map((d) => (
@@ -281,10 +289,14 @@ function ServiceFormFields({ form, onChange, categories, showIsActive = false, d
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Tipo de comissão</Label>
-          <Select value={form.commissionType} onValueChange={(v) => onChange("commissionType", v)} disabled={disabled}>
+          <Select
+            value={form.commissionType}
+            onValueChange={(v) => onChange("commissionType", v ?? "")}
+            disabled={disabled}
+            items={{ "": "Nenhuma", percentage: "Percentual (%)", fixed: "Valor fixo (R$)" }}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Nenhuma</SelectItem>
+              <SelectItem value="">Nenhuma</SelectItem>
               <SelectItem value="percentage">Percentual (%)</SelectItem>
               <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
             </SelectContent>
@@ -299,7 +311,7 @@ function ServiceFormFields({ form, onChange, categories, showIsActive = false, d
             placeholder={form.commissionType === "percentage" ? "ex: 15" : "ex: 25.00"}
             value={form.commissionValue}
             onChange={(e) => onChange("commissionValue", e.target.value)}
-            disabled={disabled || !form.commissionType || form.commissionType === "none"} />
+            disabled={disabled || !form.commissionType} />
         </div>
       </div>
 
@@ -452,7 +464,7 @@ export default function ServicosPage() {
     if (form.description) payload.description = form.description;
     if (form.categoryId && form.categoryId !== "none") payload.categoryId = parseInt(form.categoryId);
     if (form.color) payload.color = form.color;
-    if (form.commissionType && form.commissionType !== "none") {
+    if (form.commissionType) {
       payload.commissionType = form.commissionType;
       if (form.commissionValue) payload.commissionValue = parseFloat(form.commissionValue);
     }
@@ -467,8 +479,8 @@ export default function ServicosPage() {
       duration: parseInt(form.duration) || 60,
       price: parseFloat(form.price) || 0,
       color: form.color || null,
-      commissionType: form.commissionType && form.commissionType !== "none" ? form.commissionType : null,
-      commissionValue: form.commissionValue && form.commissionType && form.commissionType !== "none"
+      commissionType: form.commissionType || null,
+      commissionValue: form.commissionValue && form.commissionType
         ? parseFloat(form.commissionValue) : null,
       allowOnlineBooking: form.allowOnlineBooking,
       isActive: form.isActive,

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Search, Plus, Briefcase, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  AlertCircle, Pencil, Trash2, Clock, Building2,
+  AlertCircle, Pencil, Trash2, Clock, Building2, Link2,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ interface ProfessionalsResponse {
 }
 
 interface Unit { id: number; name: string }
+interface Service { id: number; name: string; isActive: boolean }
 
 interface ProfForm {
   name: string;
@@ -234,7 +235,11 @@ function ProfFormFields({ form, onChange, disabled }: ProfFormFieldsProps) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Tipo de comissão</Label>
-          <Select value={form.commissionType} onValueChange={v => v && onChange("commissionType", v)} disabled={disabled}>
+          <Select
+            value={form.commissionType}
+            onValueChange={v => v && onChange("commissionType", v)}
+            disabled={disabled}
+            items={{ none: "Nenhuma", percentage: "Percentual (%)", fixed: "Valor fixo (R$)" }}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhuma</SelectItem>
@@ -362,10 +367,14 @@ export default function ProfissionaisPage() {
 
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<ProfForm>(emptyForm);
-  const [editTab, setEditTab] = useState<"dados" | "horarios">("dados");
+  const [editTab, setEditTab] = useState<"dados" | "horarios" | "vinculos">("dados");
 
   // Schedule state: per unit
   const [scheduleUnitId, setScheduleUnitId] = useState<string>("");
+
+  // Vínculos state
+  const [linkedUnitIds, setLinkedUnitIds] = useState<number[]>([]);
+  const [linkedServiceIds, setLinkedServiceIds] = useState<number[]>([]);
   const [profSchedule, setProfSchedule] = useState<ProfDaySchedule[]>(DEFAULT_PROF_SCHEDULE);
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
@@ -391,14 +400,29 @@ export default function ProfissionaisPage() {
     enabled: editId !== null,
   });
 
-  // All units for the schedule unit selector
+  // All units for the schedule unit selector and vínculos
   const { data: unitsData } = useQuery<{ data: Unit[] }>({
     queryKey: ["units-simple"],
     queryFn: () => fetch("/api/units?perPage=200").then(r => r.json()),
     enabled: editId !== null,
   });
 
+  // All services for vínculos
+  const { data: servicesData } = useQuery<{ data: Service[] }>({
+    queryKey: ["services-simple"],
+    queryFn: () => fetch("/api/services?perPage=200").then(r => r.json()),
+    enabled: editId !== null,
+  });
+
+  // Current professional links
+  const { data: linksData } = useQuery<{ unitIds: number[]; serviceIds: number[] }>({
+    queryKey: ["prof-links", editId],
+    queryFn: () => fetch(`/api/professionals/${editId}/links`).then(r => r.json()),
+    enabled: editId !== null,
+  });
+
   const allUnits = unitsData?.data ?? [];
+  const allServices = servicesData?.data ?? [];
 
   // Professional working hours for the selected unit
   const { data: hoursData } = useQuery({
@@ -430,6 +454,13 @@ export default function ProfissionaisPage() {
     }
     setProfSchedule(mergeProfSchedule(hoursData));
   }, [hoursData]);
+
+  // Sync links when data loads
+  useEffect(() => {
+    if (!linksData) return;
+    setLinkedUnitIds(linksData.unitIds);
+    setLinkedServiceIds(linksData.serviceIds);
+  }, [linksData]);
 
   // Auto-select first unit when opening horarios tab
   useEffect(() => {
@@ -490,6 +521,23 @@ export default function ProfissionaisPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prof-hours", editId, scheduleUnitId] });
       toast.success("Horários salvos!");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const { mutate: saveLinks, isPending: savingLinks } = useMutation({
+    mutationFn: () =>
+      fetch(`/api/professionals/${editId}/links`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitIds: linkedUnitIds, serviceIds: linkedServiceIds }),
+      }).then(async r => {
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error ?? "Erro ao salvar vínculos"); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prof-links", editId] });
+      toast.success("Vínculos salvos!");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -563,12 +611,27 @@ export default function ProfissionaisPage() {
     saveSchedule();
   }
 
+  function handleEditVinculosSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    saveLinks();
+  }
+
+  function toggleUnit(id: number) {
+    setLinkedUnitIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function toggleService(id: number) {
+    setLinkedServiceIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
   function openCreate() { setCreateForm(emptyForm); setCreateOpen(true); }
   function openEdit(id: number) {
     setEditForm(emptyForm);
     setEditTab("dados");
     setScheduleUnitId("");
     setProfSchedule(DEFAULT_PROF_SCHEDULE);
+    setLinkedUnitIds([]);
+    setLinkedServiceIds([]);
     setEditId(id);
   }
 
@@ -719,6 +782,9 @@ export default function ProfissionaisPage() {
             <TabButton active={editTab === "dados"} onClick={() => setEditTab("dados")}>
               <Briefcase className="h-3.5 w-3.5 inline mr-1.5" />Dados
             </TabButton>
+            <TabButton active={editTab === "vinculos"} onClick={() => setEditTab("vinculos")}>
+              <Link2 className="h-3.5 w-3.5 inline mr-1.5" />Vínculos
+            </TabButton>
             <TabButton active={editTab === "horarios"} onClick={() => setEditTab("horarios")}>
               <Clock className="h-3.5 w-3.5 inline mr-1.5" />Horários
             </TabButton>
@@ -731,6 +797,76 @@ export default function ProfissionaisPage() {
                 <span className="text-sm">Carregando dados...</span>
               </div>
             </div>
+          ) : editTab === "vinculos" ? (
+            <form onSubmit={handleEditVinculosSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Defina em quais <strong>unidades</strong> este profissional atende e quais <strong>serviços</strong> ele realiza.
+                    Somente profissionais vinculados a uma unidade <em>e</em> a um serviço aparecem no agendamento online.
+                  </p>
+
+                  {/* Unidades */}
+                  <div className="space-y-2 mb-6">
+                    <Label className="flex items-center gap-2 text-sm font-semibold">
+                      <Building2 className="h-4 w-4" />Unidades
+                    </Label>
+                    {allUnits.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhuma unidade cadastrada.</p>
+                    ) : (
+                      <div className="space-y-1 rounded-lg border p-3">
+                        {allUnits.map(u => (
+                          <label key={u.id} className="flex items-center gap-3 cursor-pointer rounded-md px-2 py-2 hover:bg-muted/50 transition-colors">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input accent-primary"
+                              checked={linkedUnitIds.includes(u.id)}
+                              onChange={() => toggleUnit(u.id)}
+                              disabled={savingLinks}
+                            />
+                            <span className="text-sm font-medium">{u.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Serviços */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-semibold">
+                      <Briefcase className="h-4 w-4" />Serviços
+                    </Label>
+                    {allServices.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum serviço cadastrado.</p>
+                    ) : (
+                      <div className="space-y-1 rounded-lg border p-3">
+                        {allServices.map(s => (
+                          <label key={s.id} className="flex items-center gap-3 cursor-pointer rounded-md px-2 py-2 hover:bg-muted/50 transition-colors">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input accent-primary"
+                              checked={linkedServiceIds.includes(s.id)}
+                              onChange={() => toggleService(s.id)}
+                              disabled={savingLinks}
+                            />
+                            <span className="text-sm font-medium flex-1">{s.name}</span>
+                            {!s.isActive && (
+                              <span className="text-xs text-muted-foreground bg-muted rounded px-1.5 py-0.5">inativo</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <SheetFooter className="px-6 py-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setEditId(null)} disabled={savingLinks}>Fechar</Button>
+                <Button type="submit" disabled={savingLinks}>
+                  {savingLinks ? "Salvando..." : "Salvar vínculos"}
+                </Button>
+              </SheetFooter>
+            </form>
           ) : editTab === "dados" ? (
             <form onSubmit={handleEditDadosSubmit} className="flex flex-col flex-1 overflow-hidden">
               <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -752,10 +888,12 @@ export default function ProfissionaisPage() {
                   {allUnits.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nenhuma unidade cadastrada.</p>
                   ) : (
-                    <Select value={scheduleUnitId}
+                    <Select
+                      value={scheduleUnitId}
                       onValueChange={v => {
                         if (v) { setScheduleUnitId(v); setProfSchedule(DEFAULT_PROF_SCHEDULE); }
-                      }}>
+                      }}
+                      items={Object.fromEntries(allUnits.map(u => [String(u.id), u.name]))}>
                       <SelectTrigger className="w-full"><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                       <SelectContent>
                         {allUnits.map(u => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}

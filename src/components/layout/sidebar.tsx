@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -16,25 +16,37 @@ import {
   Ban,
   Settings,
   CalendarDays,
+  Tag,
 } from "lucide-react";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/agendamentos", label: "Agendamentos", icon: Calendar },
-  { href: "/dashboard/clientes", label: "Clientes", icon: Users },
-  { href: "/dashboard/profissionais", label: "Profissionais", icon: Briefcase },
-  { href: "/dashboard/servicos", label: "Serviços", icon: Scissors },
-  { href: "/dashboard/unidades", label: "Unidades", icon: Building2 },
-  { href: "/dashboard/fila", label: "Fila", icon: ListOrdered },
-  { href: "/dashboard/financeiro", label: "Financeiro", icon: DollarSign },
-  { href: "/dashboard/relatorios", label: "Relatórios", icon: BarChart3 },
-  { href: "/dashboard/bloqueios", label: "Bloqueios", icon: Ban },
-  { href: "/dashboard/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings },
+const NAV_SLUGS = [
+  { slug: "dashboard",      label: "Dashboard",    icon: LayoutDashboard, exact: true },
+  { slug: "agendamentos",   label: "Agendamentos", icon: Calendar },
+  { slug: "clientes",       label: "Clientes",     icon: Users },
+  { slug: "profissionais",  label: "Profissionais",icon: Briefcase },
+  { slug: "servicos",       label: "Serviços",     icon: Scissors },
+  { slug: "categorias",     label: "Categorias",   icon: Tag },
+  { slug: "unidades",       label: "Unidades",     icon: Building2 },
+  { slug: "fila",           label: "Fila",         icon: ListOrdered },
+  { slug: "financeiro",     label: "Financeiro",   icon: DollarSign },
+  { slug: "relatorios",     label: "Relatórios",   icon: BarChart3 },
+  { slug: "bloqueios",      label: "Bloqueios",    icon: Ban },
+  { slug: "calendario",     label: "Calendário",   icon: CalendarDays },
+  { slug: "configuracoes",  label: "Configurações",icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const params = useParams<{ tenant?: string }>();
+  const tenant = params?.tenant;
+
+  // Build hrefs with or without tenant prefix
+  const navItems = NAV_SLUGS.map(({ slug, label, icon, exact }) => ({
+    href: tenant ? `/${tenant}/dashboard${slug === "dashboard" ? "" : `/${slug}`}` : `/dashboard${slug === "dashboard" ? "" : `/${slug}`}`,
+    label,
+    icon,
+    exact: exact ?? false,
+  }));
 
   return (
     <aside className="w-64 border-r bg-card flex flex-col shrink-0 overflow-y-auto">
@@ -50,10 +62,9 @@ export function Sidebar() {
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+          const active = item.exact
+            ? pathname === item.href
+            : pathname.startsWith(item.href);
 
           return (
             <Link

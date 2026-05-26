@@ -46,9 +46,16 @@ export async function GET(req: NextRequest) {
   const [professionals, total] = await Promise.all([
     prisma.professional.findMany({
       where,
-      include: {
-        professionalUnits: { include: { unit: true } },
-        professionalServices: { include: { service: true } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        color: true,
+        avatar: true,
+        commissionType: true,
+        commissionValue: true,
+        isActive: true,
       },
       orderBy: { name: "asc" },
       skip: (page - 1) * perPage,
@@ -97,9 +104,16 @@ export async function POST(req: NextRequest) {
         ? { create: serviceIds.map((serviceId) => ({ serviceId })) }
         : undefined,
     },
-    include: {
-      professionalUnits: { include: { unit: true } },
-      professionalServices: { include: { service: true } },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      color: true,
+      avatar: true,
+      commissionType: true,
+      commissionValue: true,
+      isActive: true,
     },
   });
 

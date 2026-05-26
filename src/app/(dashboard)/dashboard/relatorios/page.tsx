@@ -47,13 +47,14 @@ interface ReportsData {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  scheduled:              { label: "Agendado",          color: "bg-blue-500",   icon: <Clock className="h-3.5 w-3.5" /> },
-  confirmed:              { label: "Confirmado",         color: "bg-indigo-500", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  in_progress:            { label: "Em andamento",       color: "bg-amber-500",  icon: <Clock className="h-3.5 w-3.5" /> },
-  completed:              { label: "Concluído",           color: "bg-green-500",  icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  no_show:                { label: "Não compareceu",     color: "bg-orange-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-  cancelled_by_client:    { label: "Cancelado (cliente)", color: "bg-red-400",   icon: <XCircle className="h-3.5 w-3.5" /> },
-  cancelled_by_business:  { label: "Cancelado (negócio)", color: "bg-red-600",  icon: <XCircle className="h-3.5 w-3.5" /> },
+  scheduled:              { label: "Agendado",           color: "bg-blue-500",    icon: <Clock className="h-3.5 w-3.5" /> },
+  confirmed:              { label: "Confirmado",          color: "bg-indigo-500",  icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  in_progress:            { label: "Em andamento",        color: "bg-amber-500",   icon: <Clock className="h-3.5 w-3.5" /> },
+  completed:              { label: "Concluído",            color: "bg-green-500",   icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  no_show:                { label: "Não compareceu",      color: "bg-orange-500",  icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  cancelled_by_client:    { label: "Cancelado (cliente)", color: "bg-red-400",     icon: <XCircle className="h-3.5 w-3.5" /> },
+  cancelled_by_business:  { label: "Cancelado (negócio)", color: "bg-red-600",    icon: <XCircle className="h-3.5 w-3.5" /> },
+  rescheduled:            { label: "Reagendado",          color: "bg-yellow-500",  icon: <Clock className="h-3.5 w-3.5" /> },
 };
 
 const PAYMENT_LABELS: Record<string, string> = {

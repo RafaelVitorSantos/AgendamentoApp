@@ -77,6 +77,7 @@ interface AppForm {
   date: string;
   startTime: string;
   notes: string;
+  status: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ const PER_PAGE = 20;
 const emptyForm: AppForm = {
   clientId: null, clientSearch: "",
   professionalId: null, serviceId: null, unitId: null,
-  date: format(new Date(), "yyyy-MM-dd"), startTime: "", notes: "",
+  date: format(new Date(), "yyyy-MM-dd"), startTime: "", notes: "", status: "scheduled",
 };
 
 function brl(v: number | string) {
@@ -316,6 +317,7 @@ export default function AgendamentosPage() {
       date:           apt.date.slice(0, 10),
       startTime:      apt.startTime,
       notes:          apt.notes ?? "",
+      status:         apt.status,
     });
     setSlots([]);
     setEditOpen(true);
@@ -348,6 +350,7 @@ export default function AgendamentosPage() {
       date:           form.date,
       startTime:      form.startTime,
       notes:          form.notes || null,
+      status:         form.status,
     });
   }
 
@@ -393,7 +396,10 @@ export default function AgendamentosPage() {
             className="pl-9"
           />
         </div>
-        <Select value={filterStatus} onValueChange={v => v && setFilterStatus(v)}>
+        <Select
+          value={filterStatus}
+          onValueChange={v => v && setFilterStatus(v)}
+          items={Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))}>
           <SelectTrigger className="w-52">
             <SelectValue />
           </SelectTrigger>
@@ -403,7 +409,10 @@ export default function AgendamentosPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={filterProfessional} onValueChange={v => v && setFilterProfessional(v)}>
+        <Select
+          value={filterProfessional}
+          onValueChange={v => v && setFilterProfessional(v)}
+          items={{ all: "Todos profissionais", ...Object.fromEntries(professionals.map(p => [String(p.id), p.name])) }}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Profissional" />
           </SelectTrigger>
@@ -860,15 +869,13 @@ function AppointmentFormFields({
           <Label>Profissional <span className="text-destructive">*</span></Label>
           <Select
             value={form.professionalId ? String(form.professionalId) : ""}
-            onValueChange={v => setForm(f => ({ ...f, professionalId: Number(v), startTime: "" }))}>
+            onValueChange={v => setForm(f => ({ ...f, professionalId: Number(v), startTime: "" }))}
+            items={Object.fromEntries(professionals.map(p => [String(p.id), p.name]))}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent>
               {professionals.map(p => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color ?? "#6366f1" }} />
-                    {p.name}
-                  </div>
+                <SelectItem key={p.id} value={String(p.id)} label={p.name}>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -878,15 +885,13 @@ function AppointmentFormFields({
           <Label>Serviço <span className="text-destructive">*</span></Label>
           <Select
             value={form.serviceId ? String(form.serviceId) : ""}
-            onValueChange={v => setForm(f => ({ ...f, serviceId: Number(v), startTime: "" }))}>
+            onValueChange={v => setForm(f => ({ ...f, serviceId: Number(v), startTime: "" }))}
+            items={Object.fromEntries(services.map(s => [String(s.id), s.duration ? `${s.name} (${s.duration}min)` : s.name]))}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent>
               {services.map(s => (
                 <SelectItem key={s.id} value={String(s.id)}>
-                  <div>
-                    <span>{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">({s.duration}min)</span>
-                  </div>
+                  {s.name}{s.duration ? ` (${s.duration}min)` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -900,7 +905,8 @@ function AppointmentFormFields({
           <Label>Unidade <span className="text-destructive">*</span></Label>
           <Select
             value={form.unitId ? String(form.unitId) : ""}
-            onValueChange={v => setForm(f => ({ ...f, unitId: Number(v), startTime: "" }))}>
+            onValueChange={v => setForm(f => ({ ...f, unitId: Number(v), startTime: "" }))}
+            items={Object.fromEntries(units.map(u => [String(u.id), u.name]))}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent>
               {units.map(u => (
@@ -959,6 +965,40 @@ function AppointmentFormFields({
           </p>
         )}
       </div>
+
+      {/* Status — edit mode only */}
+      {editMode && (
+        <div className="space-y-1.5">
+          <Label>Status</Label>
+          <Select
+            value={form.status}
+            onValueChange={v => v && setForm(f => ({ ...f, status: v }))}
+            items={{
+              scheduled: "Agendado",
+              confirmed: "Confirmado",
+              in_progress: "Em andamento",
+              completed: "Concluído",
+              no_show: "Não compareceu",
+              cancelled_by_client: "Cancelado (cliente)",
+              cancelled_by_business: "Cancelado (empresa)",
+              rescheduled: "Reagendado",
+            }}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="scheduled">Agendado</SelectItem>
+              <SelectItem value="confirmed">Confirmado</SelectItem>
+              <SelectItem value="in_progress">Em andamento</SelectItem>
+              <SelectItem value="completed">Concluído</SelectItem>
+              <SelectItem value="no_show">Não compareceu</SelectItem>
+              <SelectItem value="cancelled_by_client">Cancelado (cliente)</SelectItem>
+              <SelectItem value="cancelled_by_business">Cancelado (empresa)</SelectItem>
+              <SelectItem value="rescheduled">Reagendado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Notes */}
       <div className="space-y-1.5">

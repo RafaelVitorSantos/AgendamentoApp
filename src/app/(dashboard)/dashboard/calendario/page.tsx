@@ -128,12 +128,12 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate();
 }
 
-interface PositionedApt extends Appointment { colIndex: number; colCount: number; }
+interface PositionedApt { apt: Appointment; colIndex: number; colCount: number; }
 
 function resolveOverlaps(apts: Appointment[]): PositionedApt[] {
   const sorted = [...apts].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   const colEnds: number[] = [];
-  const assigned: (PositionedApt)[] = [];
+  const assigned: PositionedApt[] = [];
 
   for (const apt of sorted) {
     const startMin = timeToMinutes(apt.startTime);
@@ -142,11 +142,11 @@ function resolveOverlaps(apts: Appointment[]): PositionedApt[] {
       if (colEnds[i] <= startMin) { col = i; colEnds[i] = timeToMinutes(apt.endTime); break; }
     }
     if (col === -1) { col = colEnds.length; colEnds.push(timeToMinutes(apt.endTime)); }
-    assigned.push({ ...apt, colIndex: col, colCount: 0 });
+    assigned.push({ apt, colIndex: col, colCount: 0 });
   }
 
   const totalCols = colEnds.length;
-  return assigned.map(a => ({ ...a, colCount: totalCols }));
+  return assigned.map(a => ({ apt: a.apt, colIndex: a.colIndex, colCount: totalCols }));
 }
 
 function getMonthCells(year: number, month: number): (Date | null)[] {
@@ -414,16 +414,16 @@ export default function CalendarioPage() {
           </div>
 
           {/* Professional filter */}
-          <Select value={profFilter} onValueChange={setProfFilter}>
+          <Select
+            value={profFilter}
+            onValueChange={v => setProfFilter(v ?? "all")}
+            items={{ all: "Todos profissionais", ...Object.fromEntries(professionals.map(p => [String(p.id), p.name])) }}>
             <SelectTrigger className="h-8 w-[160px] text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos profissionais</SelectItem>
               {professionals.map(p => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
-                    {p.name}
-                  </div>
+                <SelectItem key={p.id} value={String(p.id)} label={p.name}>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -677,7 +677,7 @@ export default function CalendarioPage() {
                   <CalendarDays className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium text-sm">
-                      {format(new Date(selectedApt.date + "T12:00:00"), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      {format(new Date(selectedApt.date.slice(0, 10) + "T12:00:00"), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="h-3 w-3" />{selectedApt.startTime} – {selectedApt.endTime}
@@ -798,16 +798,15 @@ export default function CalendarioPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Profissional <span className="text-destructive">*</span></Label>
-                  <Select value={newAptForm.professionalId}
-                    onValueChange={v => setNewAptForm(f => ({ ...f, professionalId: v, startTime: "" }))}>
+                  <Select
+                    value={newAptForm.professionalId}
+                    onValueChange={v => setNewAptForm(f => ({ ...f, professionalId: v ?? "", startTime: "" }))}
+                    items={Object.fromEntries(professionals.map(p => [String(p.id), p.name]))}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {professionals.map(p => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
-                            {p.name}
-                          </div>
+                        <SelectItem key={p.id} value={String(p.id)} label={p.name}>
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -815,8 +814,10 @@ export default function CalendarioPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Serviço <span className="text-destructive">*</span></Label>
-                  <Select value={newAptForm.serviceId}
-                    onValueChange={v => setNewAptForm(f => ({ ...f, serviceId: v, startTime: "" }))}>
+                  <Select
+                    value={newAptForm.serviceId}
+                    onValueChange={v => setNewAptForm(f => ({ ...f, serviceId: v ?? "", startTime: "" }))}
+                    items={Object.fromEntries(services.map(s => [String(s.id), s.duration ? `${s.name} (${s.duration}min)` : s.name]))}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {services.map(s => (
@@ -833,8 +834,10 @@ export default function CalendarioPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Unidade <span className="text-destructive">*</span></Label>
-                  <Select value={newAptForm.unitId}
-                    onValueChange={v => setNewAptForm(f => ({ ...f, unitId: v, startTime: "" }))}>
+                  <Select
+                    value={newAptForm.unitId}
+                    onValueChange={v => setNewAptForm(f => ({ ...f, unitId: v ?? "", startTime: "" }))}
+                    items={Object.fromEntries(units.map(u => [String(u.id), u.name]))}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {units.map(u => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}

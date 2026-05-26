@@ -14,6 +14,9 @@ export async function GET(_req: NextRequest) {
 
   const categories = await prisma.serviceCategory.findMany({
     where: { tenantId: session.tenantId },
+    include: {
+      _count: { select: { services: { where: { deletedAt: null } } } },
+    },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 

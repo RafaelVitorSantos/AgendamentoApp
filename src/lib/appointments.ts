@@ -22,10 +22,20 @@ export async function getAvailableSlots(
 ): Promise<AvailableSlot[]> {
   const dayOfWeek = date.getDay();
 
-  const [workingHours, breaks, appointments, blocks, holidays] =
+  // Build an exact date range for the queried day (midnight–midnight) so
+  // Prisma date comparisons work regardless of the server's timezone.
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayEnd   = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+
+  const [profWorkingHours, unitWorkingHours, breaks, appointments, blocks, holidays] =
     await Promise.all([
+      // Professional-specific schedule for this unit+day
       prisma.professionalWorkingHours.findFirst({
         where: { professionalId, unitId, dayOfWeek, isWorking: true },
+      }),
+      // Unit-level fallback schedule
+      prisma.unitWorkingHours.findFirst({
+        where: { unitId, dayOfWeek, isOpen: true },
       }),
       prisma.professionalBreak.findMany({
         where: {
@@ -38,7 +48,7 @@ export async function getAvailableSlots(
         where: {
           tenantId,
           professionalId,
-          date,
+          date: { gte: dayStart, lt: dayEnd },
           deletedAt: null,
           status: {
             notIn: [
@@ -55,27 +65,52 @@ export async function getAvailableSlots(
         where: {
           tenantId,
           OR: [{ professionalId }, { unitId }],
-          startDate: { lte: date },
-          endDate: { gte: date },
+          startDate: { lte: dayEnd },
+          endDate: { gte: dayStart },
         },
       }),
       prisma.holiday.findMany({
         where: {
           tenantId,
           OR: [
-            { date, isRecurring: false },
+            {
+              isRecurring: false,
+              date: { gte: dayStart, lt: dayEnd },
+            },
             {
               isRecurring: true,
-              date: {
-                gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
-              },
             },
           ],
         },
       }),
     ]);
 
-  if (!workingHours || holidays.length > 0) return [];
+  // Default fallback: Mon-Fri 08:00-18:00, Sat 09:00-13:00, Sun closed
+  const DEFAULT_HOURS: Record<number, { startTime: string; endTime: string } | null> = {
+    0: null, // Sun — closed
+    1: { startTime: "08:00", endTime: "18:00" },
+    2: { startTime: "08:00", endTime: "18:00" },
+    3: { startTime: "08:00", endTime: "18:00" },
+    4: { startTime: "08:00", endTime: "18:00" },
+    5: { startTime: "08:00", endTime: "18:00" },
+    6: { startTime: "09:00", endTime: "13:00" }, // Sat
+  };
+
+  // Use professional's own hours if configured, otherwise fall back to unit hours,
+  // then to the built-in default schedule so slots appear even without explicit config.
+  const workingHours = profWorkingHours
+    ? { startTime: profWorkingHours.startTime, endTime: profWorkingHours.endTime }
+    : unitWorkingHours
+    ? { startTime: unitWorkingHours.openTime, endTime: unitWorkingHours.closeTime }
+    : DEFAULT_HOURS[dayOfWeek] ?? null;
+
+  // Filter recurring holidays to only those matching the same month/day
+  const activeHolidays = holidays.filter((h) => {
+    if (!h.isRecurring) return true;
+    return h.date.getMonth() === date.getMonth() && h.date.getDate() === date.getDate();
+  });
+
+  if (!workingHours || activeHolidays.length > 0) return [];
 
   const hasAllDayBlock = blocks.some((b) => b.isAllDay);
   if (hasAllDayBlock) return [];

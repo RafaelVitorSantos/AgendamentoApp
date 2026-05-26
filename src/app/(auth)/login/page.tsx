@@ -9,7 +9,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const schema = z.object({
   tenantSlug: z.string().min(1, "Informe o slug da empresa"),
@@ -23,9 +29,11 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
     setLoading(true);
@@ -43,8 +51,7 @@ export default function LoginPage() {
         return;
       }
 
-      toast.success("Login realizado com sucesso!");
-      router.push("/dashboard");
+      router.push(`/${data.tenantSlug}/dashboard`);
     } catch {
       toast.error("Erro de conexão");
     } finally {
@@ -62,7 +69,12 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">AgendaPRO</CardTitle>
-          <CardDescription>Entre na sua conta para continuar</CardDescription>
+          <CardDescription>
+            Acesse diretamente pelo link da sua empresa:{" "}
+            <span className="font-mono text-primary">
+              /sua-empresa/login
+            </span>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -71,6 +83,7 @@ export default function LoginPage() {
               <Input
                 id="tenantSlug"
                 placeholder="minha-empresa"
+                autoComplete="organization"
                 {...register("tenantSlug")}
               />
               {errors.tenantSlug && (
@@ -84,6 +97,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="seu@email.com"
+                autoComplete="email"
                 {...register("email")}
               />
               {errors.email && (
@@ -97,6 +111,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 {...register("password")}
               />
               {errors.password && (

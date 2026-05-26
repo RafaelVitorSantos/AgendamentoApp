@@ -278,7 +278,11 @@ function TransactionFormFields({ form, onChange, categories, disabled }: FormFie
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Categoria</Label>
-          <Select value={form.categoryId} onValueChange={(v) => onChange("categoryId", v)} disabled={disabled}>
+          <Select
+            value={form.categoryId}
+            onValueChange={(v) => onChange("categoryId", v ?? "")}
+            disabled={disabled}
+            items={{ none: "Sem categoria", ...Object.fromEntries(filteredCategories.map((c) => [String(c.id), c.name])) }}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Sem categoria</SelectItem>
@@ -290,7 +294,11 @@ function TransactionFormFields({ form, onChange, categories, disabled }: FormFie
         </div>
         <div className="space-y-1.5">
           <Label>Forma de pagamento</Label>
-          <Select value={form.paymentMethod} onValueChange={(v) => onChange("paymentMethod", v)} disabled={disabled}>
+          <Select
+            value={form.paymentMethod}
+            onValueChange={(v) => onChange("paymentMethod", v ?? "")}
+            disabled={disabled}
+            items={{ none: "Não informado", ...Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label])) }}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Não informado</SelectItem>
@@ -305,7 +313,11 @@ function TransactionFormFields({ form, onChange, categories, disabled }: FormFie
       {/* Status */}
       <div className="space-y-1.5">
         <Label>Status</Label>
-        <Select value={form.status} onValueChange={(v) => onChange("status", v as TransactionForm["status"])} disabled={disabled}>
+        <Select
+          value={form.status}
+          onValueChange={(v) => onChange("status", v as TransactionForm["status"])}
+          disabled={disabled}
+          items={{ pending: "Pendente", paid: "Pago", cancelled: "Cancelado" }}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="pending">Pendente</SelectItem>
@@ -598,7 +610,10 @@ export default function FinanceiroPage() {
               </div>
 
               {/* Type filter */}
-              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); handleFilterChange(); }}>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => { setTypeFilter(v ?? "all"); handleFilterChange(); }}
+                items={{ all: "Todos tipos", income: "Receitas", expense: "Despesas" }}>
                 <SelectTrigger className="h-9 w-[130px] text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos tipos</SelectItem>
@@ -608,7 +623,10 @@ export default function FinanceiroPage() {
               </Select>
 
               {/* Status filter */}
-              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); handleFilterChange(); }}>
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => { setStatusFilter(v ?? "all"); handleFilterChange(); }}
+                items={{ all: "Todos status", pending: "Pendente", paid: "Pago", cancelled: "Cancelado" }}>
                 <SelectTrigger className="h-9 w-[130px] text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos status</SelectItem>

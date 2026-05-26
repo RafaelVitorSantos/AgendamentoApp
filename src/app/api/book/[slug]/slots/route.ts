@@ -10,6 +10,7 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const professionalId = parseInt(searchParams.get("professionalId") ?? "0");
   const serviceId = parseInt(searchParams.get("serviceId") ?? "0");
+  const unitIdParam = parseInt(searchParams.get("unitId") ?? "0");
   const dateStr = searchParams.get("date");
 
   if (!professionalId || !serviceId || !dateStr) {
@@ -25,16 +26,23 @@ export async function GET(
   });
   if (!service) return NextResponse.json({ slots: [] });
 
-  const unit = await prisma.unit.findFirst({
-    where: { tenantId: tenant.id, isActive: true },
-  });
+  // Use the unitId provided by the client; fall back to the first active unit
+  const unitWhere = unitIdParam
+    ? { id: unitIdParam, tenantId: tenant.id, isActive: true }
+    : { tenantId: tenant.id, isActive: true };
+
+  const unit = await prisma.unit.findFirst({ where: unitWhere });
   if (!unit) return NextResponse.json({ slots: [] });
+
+  // Parse date as local (YYYY-MM-DD) to avoid UTC off-by-one
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
 
   const slots = await getAvailableSlots(
     tenant.id,
     professionalId,
     unit.id,
-    new Date(dateStr),
+    date,
     service.duration
   );
 

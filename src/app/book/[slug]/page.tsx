@@ -1,13 +1,28 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { isTenantActive } from "@/lib/tenant";
-import { PublicBookingForm } from "./booking-form";
+import { BookingShell } from "./booking-shell";
+import type { Metadata } from "next";
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const tenant = await prisma.tenant.findUnique({ where: { slug } });
   if (!tenant) return { title: "Agendamento não encontrado" };
-  return { title: `Agendar — ${tenant.name}` };
+
+  return {
+    title: `Agendar — ${tenant.name}`,
+    description: `Agende seu horário online em ${tenant.name}. Rápido, fácil e sem complicação.`,
+    openGraph: {
+      title: `${tenant.name} — Agendamento Online`,
+      description: `Agende seu horário em ${tenant.name} em poucos cliques.`,
+      type: "website",
+    },
+    alternates: { canonical: `/auraflowstudio/${slug}` },
+  };
 }
 
 export default async function PublicBookingPage({
@@ -25,6 +40,7 @@ export default async function PublicBookingPage({
   const rawServices = await prisma.service.findMany({
     where: { tenantId: tenant.id, deletedAt: null, isActive: true, allowOnlineBooking: true },
     orderBy: { name: "asc" },
+    select: { id: true, name: true, duration: true, price: true, description: true, color: true },
   });
 
   const services = rawServices.map((s) => ({
@@ -32,6 +48,8 @@ export default async function PublicBookingPage({
     name: s.name,
     duration: s.duration,
     price: Number(s.price),
+    description: s.description,
+    color: s.color,
   }));
 
   const units = await prisma.unit.findMany({
@@ -40,24 +58,24 @@ export default async function PublicBookingPage({
     select: { id: true, name: true },
   });
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10">
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground font-bold text-2xl mx-auto mb-4">
-            {tenant.name.charAt(0)}
-          </div>
-          <h1 className="text-3xl font-bold">{tenant.name}</h1>
-          <p className="text-muted-foreground mt-2">Agende seu horário online</p>
-        </div>
+  const [reviewCount, avgRating] = await Promise.all([
+    prisma.review.count({ where: { tenantId: tenant.id } }),
+    prisma.review.aggregate({ where: { tenantId: tenant.id }, _avg: { rating: true } }),
+  ]);
 
-        <PublicBookingForm
-          tenantSlug={slug}
-          tenantId={tenant.id}
-          services={services}
-          units={units}
-        />
-      </div>
-    </div>
+  const rating =
+    avgRating._avg.rating ? Number(avgRating._avg.rating).toFixed(1) : null;
+
+  return (
+    <BookingShell
+      tenantSlug={slug}
+      tenantId={tenant.id}
+      tenantName={tenant.name}
+      tenantPhone={tenant.phone}
+      services={services}
+      units={units}
+      rating={rating}
+      reviewCount={reviewCount}
+    />
   );
 }

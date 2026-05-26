@@ -495,9 +495,11 @@ export default function ConfiguracoesPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Fuso horário</Label>
-                      <Select value={tenantForm.timezone}
-                        onValueChange={v => setTenantForm(f => ({ ...f, timezone: v }))}
-                        disabled={savingTenant}>
+                      <Select
+                        value={tenantForm.timezone}
+                        onValueChange={v => setTenantForm(f => ({ ...f, timezone: v ?? f.timezone }))}
+                        disabled={savingTenant}
+                        items={Object.fromEntries(TIMEZONES.map(tz => [tz.value, tz.label]))}>
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {TIMEZONES.map(tz => (
@@ -526,12 +528,12 @@ export default function ConfiguracoesPage() {
                 <div className="flex items-center gap-2">
                   <Input
                     readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/book/${settings?.tenant?.slug ?? ""}`}
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/auraflowstudio/${settings?.tenant?.slug ?? ""}`}
                     className="font-mono text-sm bg-muted text-muted-foreground cursor-text"
                   />
                   <Button variant="outline" size="sm" type="button"
                     onClick={() => {
-                      const url = `${window.location.origin}/book/${settings?.tenant?.slug ?? ""}`;
+                      const url = `${window.location.origin}/auraflowstudio/${settings?.tenant?.slug ?? ""}`;
                       navigator.clipboard.writeText(url);
                       toast.success("Link copiado!");
                     }}>

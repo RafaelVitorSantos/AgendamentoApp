@@ -482,7 +482,11 @@ export default function BloqueiosPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Profissional</Label>
-            <Select value={form.professionalId || "none"} onValueChange={(v) => onChange("professionalId", v === "none" ? "" : v)} disabled={disabled}>
+            <Select
+              value={form.professionalId || "none"}
+              onValueChange={(v) => onChange("professionalId", v === "none" || !v ? "" : v)}
+              disabled={disabled}
+              items={{ none: "Todos (geral)", ...Object.fromEntries(profList.map((p) => [String(p.id), p.name])) }}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Todos (geral)</SelectItem>
@@ -492,7 +496,11 @@ export default function BloqueiosPage() {
           </div>
           <div className="space-y-1.5">
             <Label>Unidade</Label>
-            <Select value={form.unitId || "none"} onValueChange={(v) => onChange("unitId", v === "none" ? "" : v)} disabled={disabled}>
+            <Select
+              value={form.unitId || "none"}
+              onValueChange={(v) => onChange("unitId", v === "none" || !v ? "" : v)}
+              disabled={disabled}
+              items={{ none: "Todas (geral)", ...Object.fromEntries(unitList.map((u) => [String(u.id), u.name])) }}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Todas" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Todas (geral)</SelectItem>
@@ -586,7 +594,10 @@ export default function BloqueiosPage() {
                     <Input className="pl-9" placeholder="Buscar por título..."
                       value={blockSearch} onChange={(e) => handleBlockSearch(e.target.value)} />
                   </div>
-                  <Select value={blockScope} onValueChange={(v) => { setBlockScope(v); setBlockPage(1); }}>
+                  <Select
+                    value={blockScope}
+                    onValueChange={(v) => { setBlockScope(v ?? "all"); setBlockPage(1); }}
+                    items={{ all: "Todos", professional: "Por profissional", unit: "Por unidade", general: "Gerais" }}>
                     <SelectTrigger className="h-9 w-[150px] text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>

@@ -50,7 +50,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Conta criada! Período de teste de 14 dias iniciado.");
-      router.push("/dashboard");
+      router.push(`/${json.tenantSlug}/dashboard`);
     } catch {
       toast.error("Erro de conexão");
     } finally {

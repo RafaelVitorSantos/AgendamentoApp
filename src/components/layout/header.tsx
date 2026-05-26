@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 
 export function Header() {
   const router = useRouter();
+  const params = useParams<{ tenant?: string }>();
+  const tenant = params?.tenant;
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -25,8 +27,12 @@ export function Header() {
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     toast.success("Até logo!");
-    router.push("/login");
+    router.push(tenant ? `/${tenant}/login` : "/login");
   }
+
+  const settingsHref = tenant
+    ? `/${tenant}/dashboard/configuracoes`
+    : "/dashboard/configuracoes";
 
   return (
     <header className="h-16 border-b bg-card flex items-center justify-between px-6 shrink-0">
@@ -49,11 +55,11 @@ export function Header() {
             <span className="text-sm font-medium">{me?.name ?? "Usuário"}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => router.push("/dashboard/configuracoes")}>
+            <DropdownMenuItem onClick={() => router.push(settingsHref)}>
               <User className="mr-2 h-4 w-4" />
               Meu perfil
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/dashboard/configuracoes")}>
+            <DropdownMenuItem onClick={() => router.push(settingsHref)}>
               <Settings className="mr-2 h-4 w-4" />
               Configurações
             </DropdownMenuItem>

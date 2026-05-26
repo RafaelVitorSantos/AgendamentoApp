@@ -257,7 +257,11 @@ function UnitFormFields({ form, onChange, showIsActive = false, disabled }: Unit
       </div>
       <div className="space-y-1.5">
         <Label>Fuso horário</Label>
-        <Select value={form.timezone} onValueChange={v => v && onChange("timezone", v)} disabled={disabled}>
+        <Select
+          value={form.timezone}
+          onValueChange={v => v && onChange("timezone", v)}
+          disabled={disabled}
+          items={Object.fromEntries(TIMEZONES.map(tz => [tz.value, tz.label]))}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>{TIMEZONES.map(tz => <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>)}</SelectContent>
         </Select>

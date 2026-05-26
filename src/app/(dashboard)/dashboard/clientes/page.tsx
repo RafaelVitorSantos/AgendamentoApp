@@ -292,8 +292,9 @@ function ClientFormFields({ form, onChange, disabled }: ClientFormFieldsProps) {
         <Label>Gênero</Label>
         <Select
           value={form.gender}
-          onValueChange={(val) => onChange("gender", val)}
+          onValueChange={(val) => onChange("gender", val ?? "")}
           disabled={disabled}
+          items={{ masculino: "Masculino", feminino: "Feminino", outro: "Outro", nao_informado: "Prefiro não informar" }}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecionar..." />

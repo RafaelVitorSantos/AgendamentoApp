@@ -38,10 +38,21 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to");
   const search = searchParams.get("search");
 
+  // Parse YYYY-MM-DD strings as local dates to avoid UTC off-by-one
+  function localDate(str: string) {
+    const [y, mo, d] = str.split("-").map(Number);
+    return new Date(y, mo - 1, d);
+  }
+
   if (from && to) {
-    where.date = { gte: new Date(from), lte: new Date(to) };
+    const toEnd = localDate(to);
+    toEnd.setDate(toEnd.getDate() + 1); // inclusive: up to end-of-day
+    where.date = { gte: localDate(from), lt: toEnd };
   } else if (date) {
-    where.date = new Date(date);
+    const dayStart = localDate(date);
+    const dayEnd   = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    where.date = { gte: dayStart, lt: dayEnd };
   }
   if (professionalId) where.professionalId = parseInt(professionalId);
   if (unitId) where.unitId = parseInt(unitId);
@@ -107,7 +118,8 @@ export async function POST(req: NextRequest) {
   const endMinutes = h * 60 + m + service.duration;
   const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}`;
 
-  const date = new Date(data.date);
+  const [yd, md2, dd] = data.date.split("-").map(Number);
+  const date = new Date(yd, md2 - 1, dd);
 
   const conflict = await hasConflict(data.professionalId, date, data.startTime, endTime);
   if (conflict) {

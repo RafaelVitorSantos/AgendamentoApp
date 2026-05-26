@@ -66,8 +66,24 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
 
+  const DEFAULT_WORKING_HOURS = [
+    { dayOfWeek: 0, openTime: "09:00", closeTime: "13:00", isOpen: false }, // Dom
+    { dayOfWeek: 1, openTime: "08:00", closeTime: "18:00", isOpen: true  }, // Seg
+    { dayOfWeek: 2, openTime: "08:00", closeTime: "18:00", isOpen: true  }, // Ter
+    { dayOfWeek: 3, openTime: "08:00", closeTime: "18:00", isOpen: true  }, // Qua
+    { dayOfWeek: 4, openTime: "08:00", closeTime: "18:00", isOpen: true  }, // Qui
+    { dayOfWeek: 5, openTime: "08:00", closeTime: "18:00", isOpen: true  }, // Sex
+    { dayOfWeek: 6, openTime: "09:00", closeTime: "13:00", isOpen: false }, // Sáb
+  ];
+
   const unit = await prisma.unit.create({
-    data: { tenantId: session.tenantId, ...parsed.data },
+    data: {
+      tenantId: session.tenantId,
+      ...parsed.data,
+      workingHours: {
+        create: DEFAULT_WORKING_HOURS,
+      },
+    },
   });
 
   return NextResponse.json(unit, { status: 201 });

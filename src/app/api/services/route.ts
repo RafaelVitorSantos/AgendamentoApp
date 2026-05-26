@@ -45,7 +45,21 @@ export async function GET(req: NextRequest) {
   const [services, total] = await Promise.all([
     prisma.service.findMany({
       where,
-      include: { category: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        duration: true,
+        price: true,
+        color: true,
+        commissionType: true,
+        commissionValue: true,
+        allowOnlineBooking: true,
+        isActive: true,
+        category: {
+          select: { id: true, name: true, color: true },
+        },
+      },
       orderBy: { name: "asc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -77,7 +91,19 @@ export async function POST(req: NextRequest) {
       color: parsed.data.color || null,
       categoryId: parsed.data.categoryId ?? null,
     },
-    include: { category: true },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      duration: true,
+      price: true,
+      color: true,
+      commissionType: true,
+      commissionValue: true,
+      allowOnlineBooking: true,
+      isActive: true,
+      category: { select: { id: true, name: true, color: true } },
+    },
   });
 
   return NextResponse.json(service, { status: 201 });

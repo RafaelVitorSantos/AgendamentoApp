@@ -45,7 +45,9 @@ export async function POST(
   const endMin = h * 60 + m + service.duration;
   const endTime = `${Math.floor(endMin / 60).toString().padStart(2, "0")}:${(endMin % 60).toString().padStart(2, "0")}`;
 
-  const date = new Date(data.date);
+  // Parse YYYY-MM-DD as local date to avoid UTC off-by-one
+  const [dy, dm, dd] = data.date.split("-").map(Number);
+  const date = new Date(dy, dm - 1, dd);
   const conflict = await hasConflict(professionalId, date, data.startTime, endTime);
   if (conflict) return NextResponse.json({ error: "Horário não disponível" }, { status: 409 });
 

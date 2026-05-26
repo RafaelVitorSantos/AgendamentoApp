@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/book",
+  "/auraflowstudio",
   "/api/auth",
   "/api/book",
   "/api/calendar",
@@ -16,8 +17,20 @@ const PUBLIC_PATHS = [
   "/api/health",
 ];
 
+// Matches /{tenant}/login — tenant slugs are lowercase alphanumeric + hyphens
+const TENANT_LOGIN_RE = /^\/[a-z0-9][a-z0-9-]*\/login$/;
+
 function isPublic(path: string): boolean {
-  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+  if (PUBLIC_PATHS.some((p) => path.startsWith(p))) return true;
+  if (TENANT_LOGIN_RE.test(path)) return true;
+  return false;
+}
+
+// Extract tenant from URL for redirect; falls back to /login for legacy routes
+function loginUrl(pathname: string, base: string): URL {
+  const match = pathname.match(/^\/([a-z0-9][a-z0-9-]*)\//);
+  if (match) return new URL(`/${match[1]}/login`, base);
+  return new URL("/login", base);
 }
 
 export async function middleware(req: NextRequest) {
@@ -28,7 +41,7 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get("agendapro_token")?.value;
 
   if (!token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(loginUrl(pathname, req.url));
   }
 
   try {
@@ -46,7 +59,7 @@ export async function middleware(req: NextRequest) {
     res.headers.set("x-role", String(payload.roleName));
     return res;
   } catch {
-    const res = NextResponse.redirect(new URL("/login", req.url));
+    const res = NextResponse.redirect(loginUrl(pathname, req.url));
     res.cookies.delete("agendapro_token");
     return res;
   }

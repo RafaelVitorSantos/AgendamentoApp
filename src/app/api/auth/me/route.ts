@@ -24,10 +24,15 @@ export async function GET() {
     return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
   }
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     ...user,
     tenantId: session.tenantId,
     tenantSlug: session.tenantSlug,
     permissions: session.permissions,
   });
+
+  // Cache no browser por 60s, revalidação silenciosa por mais 120s
+  res.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
+
+  return res;
 }
